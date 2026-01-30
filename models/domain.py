@@ -97,3 +97,32 @@ class Rating:
     companion_id: str
     stars: int  # 1~5
     created_at: datetime  # UTC
+
+@dataclass(frozen=True)
+class VisitInfo:
+    hospital: str
+    department: str
+    visit_date: str  # "YYYY-MM-DD"
+
+
+@dataclass(frozen=True)
+class ChecklistItem:
+    item: str
+    required: bool
+    reason: str | None = None
+
+
+@dataclass(frozen=True)
+class ChecklistCategory:
+    category: str  # "필수 서류" | "의료 기록" | "기타 준비물"
+    items: list[ChecklistItem]
+
+
+@dataclass(frozen=True)
+class ChecklistResult:
+    checklist_id: str
+    booking_id: str
+    visit_info: VisitInfo
+    checklist: list[ChecklistCategory]
+    special_notes: list[str]  # ✅ "기타 사항"에 해당
+    created_at: datetime  # UTC

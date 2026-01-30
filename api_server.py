@@ -12,6 +12,7 @@ from routers import memo_list_router
 from routers import map_router
 from routers import guardian_note_router
 from routers import guardian_note_list_router
+from routers import booking_checklist_router
 
 app = FastAPI(
     title="Backend API Server",
@@ -31,6 +32,7 @@ app.include_router(guardian_note_router.router)
 app.include_router(guardian_note_list_router.router)
 app.include_router(companion_router.router)
 app.include_router(map_router.router)
+app.include_router(booking_checklist_router.router)
 
 app.add_middleware(
     CORSMiddleware,
