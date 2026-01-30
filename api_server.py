@@ -9,6 +9,7 @@ from routers import guide_router, request_router, stt_router, companion_router
 from routers import booking_router
 from routers import memo_router
 from routers import memo_list_router
+from routers import map_router
 
 app = FastAPI(
     title="Backend API Server",
@@ -25,6 +26,7 @@ app.include_router(memo_list_router.router)
 app.include_router(stt_router.router)
 app.include_router(guide_router.router)
 app.include_router(companion_router.router)
+app.include_router(map_router.router)
 
 app.add_middleware(
     CORSMiddleware,
