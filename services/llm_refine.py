@@ -1,4 +1,4 @@
-# llm_refine.py
+# services/llm_refine.py
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -50,46 +50,42 @@ class LLMRefineService:
 
         tr_id = transcription_id or f"tr_{uuid4().hex[:12]}"
 
-        # JSON Schema: 반드시 이 형태로만 나오도록 강제
-        schema = {
+        # Function tool schema (OpenAI Chat Completions tool calling)
+        tool_schema = {
             "name": "MedicalConsultationRefinement",
-            "schema": {
+            "description": "의료 상담/진료 STT 텍스트에서 임상적으로 관련된 정보를 추출하여 구조화합니다.",
+            "parameters": {
                 "type": "object",
                 "additionalProperties": False,
                 "properties": {
-                    "summary": {"type": "string"},
-                    "diagnosis": {"type": "string"},
-                    "prescription": {"type": "string"},
-                    "cautions": {"type": "string"},
-                    "next_schedule": {"type": "string"},
+                    "summary": {"type": "string", "description": "전체 내용 요약"},
+                    "diagnosis": {"type": "string", "description": "의심 소견 또는 진단 내용"},
+                    "prescription": {"type": "string", "description": "처방된 약물 및 복약 지도"},
+                    "cautions": {"type": "string", "description": "환자가 주의해야 할 사항"},
+                    "next_schedule": {"type": "string", "description": "다음 예약 일정 또는 추적 검사"},
                 },
                 "required": ["summary", "diagnosis", "prescription", "cautions", "next_schedule"],
             },
-            "strict": True,
         }
 
         system = (
             "You are a backend medical note formatter.\n"
-            "Given Korean STT text of a medical visit (doctor-patient conversation or announcement), "
-            "extract ONLY clinically relevant information and format it into the given JSON schema.\n\n"
+            "Given Korean STT text of a medical visit (doctor-patient conversation), "
+            "extract ONLY clinically relevant information and call the provided function tool.\n\n"
             "Rules:\n"
-            "- Output must be valid JSON that matches the schema exactly. No extra keys.\n"
+            "- Do NOT invent facts not present in the text.\n"
             "- If a field has no relevant content, return an empty string \"\".\n"
             "- Be concise and use Korean.\n"
             "- Remove filler, greetings, repetition, off-topic content.\n"
-            "- 'summary': one short sentence summarizing the whole visit.\n"
-            "- 'diagnosis': suspected finding / assessment / diagnosis (include key symptoms + impression if present).\n"
-            "- 'prescription': medications, dosage, duration, and non-drug treatment instructions if explicitly mentioned.\n"
-            "- 'cautions': warnings, precautions, red flags, activity restrictions, side effects mentioned.\n"
-            "- 'next_schedule': follow-up appointment date/time, re-visit plan, tests to be done later; "
+            "- summary: one short sentence summarizing the whole visit.\n"
+            "- diagnosis: suspected finding / assessment / diagnosis (include key symptoms + impression if present).\n"
+            "- prescription: medications, dosage, duration, and non-drug treatment instructions if explicitly mentioned.\n"
+            "- cautions: warnings, precautions, red flags, activity restrictions, side effects mentioned.\n"
+            "- next_schedule: follow-up appointment date/time, re-visit plan, tests to be done later; "
             "if time is vague, write it as described (e.g., '2주 후 재내원').\n"
         )
 
-        user = (
-            "STT text:\n"
-            f"{text}\n\n"
-            "Return JSON only. Do not include any extra keys."
-        )
+        user = f"STT text:\n{text}"
 
         try:
             resp = self._client.chat.completions.create(
@@ -98,24 +94,39 @@ class LLMRefineService:
                     {"role": "system", "content": system},
                     {"role": "user", "content": user},
                 ],
-                response_format={"type": "json_schema", "json_schema": schema},
+                tools=[{"type": "function", "function": tool_schema}],
+                tool_choice={"type": "function", "function": {"name": tool_schema["name"]}},
             )
         except Exception as e:
             raise RuntimeError(f"LLM refinement failed: {e}") from e
 
-        content = resp.choices[0].message.content
-        if not content:
-            raise RuntimeError("LLM returned empty content")
+        msg = resp.choices[0].message
 
-        data: Dict[str, Any] = json.loads(content)
+        # Tool calling 결과 파싱
+        tool_calls = getattr(msg, "tool_calls", None)
+        if not tool_calls:
+            # 모델/설정 문제로 tool call이 안 떨어진 경우 대비
+            raise RuntimeError("LLM did not return tool_calls")
 
-        # strict schema라 키는 항상 존재해야 하지만, 방어적으로 .get + 기본값 처리
+        arguments = tool_calls[0].function.arguments
+        if not arguments:
+            raise RuntimeError("LLM returned empty arguments")
+
+        data: Dict[str, Any] = json.loads(arguments)
+
+        # 스펙: 없는 경우 빈 문자열 (모델이 강제하더라도 방어적으로 처리)
+        summary = (data.get("summary") or "").strip()
+        diagnosis = (data.get("diagnosis") or "").strip()
+        prescription = (data.get("prescription") or "").strip()
+        cautions = (data.get("cautions") or "").strip()
+        next_schedule = (data.get("next_schedule") or "").strip()
+
         return RefinedResult(
             transcription_id=tr_id,
             text=text,
-            summary=(data.get("summary") or "").strip(),
-            diagnosis=(data.get("diagnosis") or "").strip(),
-            prescription=(data.get("prescription") or "").strip(),
-            cautions=(data.get("cautions") or "").strip(),
-            next_schedule=(data.get("next_schedule") or "").strip(),
+            summary=summary,
+            diagnosis=diagnosis,
+            prescription=prescription,
+            cautions=cautions,
+            next_schedule=next_schedule,
         )
