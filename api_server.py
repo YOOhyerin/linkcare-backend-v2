@@ -7,7 +7,8 @@ from services.request_service import RequestService
 
 from routers import request_router
 from routers import booking_router
-
+from routers import memo_router
+from routers import memo_list_router
 
 app = FastAPI(
     title="Backend API Server",
@@ -19,6 +20,8 @@ app = FastAPI(
 # app.include_router(xxx_router.router)
 app.include_router(request_router.router)
 app.include_router(booking_router.router)
+app.include_router(memo_router.router)
+app.include_router(memo_list_router.router)
 
 app.add_middleware(
     CORSMiddleware,
