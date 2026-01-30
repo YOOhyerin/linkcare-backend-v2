@@ -4,7 +4,7 @@ from datetime import date, datetime, timezone
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class RequestStatus(str, Enum):
@@ -187,3 +187,66 @@ class CompanionRatingSummaryOut(BaseModel):
     companion_id: str = Field(..., min_length=1)
     average_stars: float = Field(..., ge=0.0, le=5.0)
     rating_count: int = Field(..., ge=0)
+
+
+class VisitInfoOut(BaseModel):
+    hospital: str
+    department: str
+    visit_date: str
+
+
+class ChecklistItemOut(BaseModel):
+    item: str = Field(..., min_length=1)
+    required: bool
+    reason: Optional[str] = None
+
+
+class ChecklistCategoryOut(BaseModel):
+    category: str
+    items: List[ChecklistItemOut]
+
+
+class ChecklistCreateOut(BaseModel):
+    checklist_id: str
+    booking_id: str
+    visit_info: VisitInfoOut
+    checklist: List[ChecklistCategoryOut]     # 3개 카테고리
+    special_notes: List[str]                 # ✅ "기타 사항"
+    created_at: datetime
+
+    @field_validator("created_at")
+    @classmethod
+    def ensure_utc(cls, v: datetime) -> datetime:
+        if v.tzinfo is None:
+            return v.replace(tzinfo=timezone.utc)
+        return v.astimezone(timezone.utc)
+
+class ChecklistCategoryName(str, Enum):
+    REQUIRED_DOCS = "필수 서류"
+    MEDICAL_RECORDS = "의료 기록"
+    OTHER_ITEMS = "기타 준비물"
+
+
+class LLMChecklistItem(BaseModel):
+    item: str = Field(..., min_length=1)
+    required: bool
+    reason: Optional[str] = ""
+
+
+class LLMChecklistCategory(BaseModel):
+    category: ChecklistCategoryName
+    items: List[LLMChecklistItem]
+
+
+class LLMChecklistOutput(BaseModel):
+    checklist: List[LLMChecklistCategory]
+    special_notes: List[str] = Field(default_factory=list)  # ✅ "기타 사항"
+
+    @model_validator(mode="after")
+    def validate_categories(self):
+        # 카테고리 3개가 모두 존재하도록 강제
+        cats = [c.category.value for c in self.checklist]
+        required = {"필수 서류", "의료 기록", "기타 준비물"}
+        if set(cats) != required:
+            raise ValueError("Checklist categories must be exactly: 필수 서류, 의료 기록, 기타 준비물")
+        return self
