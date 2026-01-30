@@ -163,6 +163,7 @@ class BookingDetailOut(BaseModel):
             return v.replace(tzinfo=timezone.utc)
         return v.astimezone(timezone.utc)
 
+
 class RatingCreateIn(BaseModel):
     stars: int = Field(..., ge=1, le=5, description="별점 (1~5)")
 
@@ -180,3 +181,9 @@ class RatingCreateOut(BaseModel):
         if v.tzinfo is None:
             return v.replace(tzinfo=timezone.utc)
         return v.astimezone(timezone.utc)
+
+
+class CompanionRatingSummaryOut(BaseModel):
+    companion_id: str = Field(..., min_length=1)
+    average_stars: float = Field(..., ge=0.0, le=5.0)
+    rating_count: int = Field(..., ge=0)

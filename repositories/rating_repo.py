@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import threading
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 from models.domain import Rating
 
@@ -22,3 +22,14 @@ class InMemoryRatingRepository:
         with self._lock:
             self._by_booking[rating.booking_id] = rating
             return rating
+
+    # ✅ 추가: companion_id 기준으로 (sum, count) 반환
+    def sum_and_count_by_companion(self, companion_id: str) -> Tuple[int, int]:
+        with self._lock:
+            total = 0
+            count = 0
+            for r in self._by_booking.values():
+                if r.companion_id == companion_id:
+                    total += r.stars
+                    count += 1
+            return total, count
