@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from repositories.request_repo import InMemoryRequestRepository
 from services.request_service import RequestService
 
-from routers import request_router
+from routers import guide_router, request_router, stt_router
 from routers import booking_router
 
 
@@ -19,6 +19,8 @@ app = FastAPI(
 # app.include_router(xxx_router.router)
 app.include_router(request_router.router)
 app.include_router(booking_router.router)
+app.include_router(stt_router.router)
+app.include_router(guide_router.router)
 
 app.add_middleware(
     CORSMiddleware,
